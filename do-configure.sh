@@ -52,21 +52,24 @@ rm -rf CMakeCache.txt CMakeFiles
 # export LD_LIBRARY_PATH=/opt/gcc/gcc-5.2.0/lib64:$LD_LIBRARY_PATH
 # Note LAPACK 3.6+ is not supported yet
 
+## Build option for Trilinos 13.0.1 using gcc/7.3.1 + spectrum-mpi-2020.08.19 with cuda/10.1.243 for V100 GPUs
 
+TRILINOS_PATH=<Trilinos Source DIR>
+LOCALBASE=<MPI INSTALL DIR>
 PREFIX=~/TeaLeaf_Trilinos/libs/trilinos
-export MPICH_CXX=`readlink -f ../packages/kokkos/config/nvcc_wrapper`
-export NVCC_WRAPPER_DEFAULT_COMPILER=g++
-export CUDA_LAUNCH_BLOCKING=1
+MPICH_CXX=`readlink -f ../packages/kokkos/config/nvcc_wrapper`
+#export NVCC_WRAPPER_DEFAULT_COMPILER=g++
+#export CUDA_LAUNCH_BLOCKING=1
 
 
 cmake \
     -D CMAKE_INSTALL_PREFIX:PATH=$PREFIX \
     -D CMAKE_BUILD_TYPE:STRING=RELEASE \
-    -D CMAKE_CXX_COMPILER:FILEPATH=mpicxx \
-    -D CMAKE_C_COMPILER:FILEPATH=mpicc \
-    -D CMAKE_Fortran_COMPILER:FILEPATH=mpif90  \
-    -D Trilinos_WARNINGS_AS_ERRORS_FLAGS:STRING="" \
     -D CMAKE_VERBOSE_MAKEFILE:BOOL=TRUE \
+    -D TPL_ENABLE_MPI:BOOL=ON \
+    -D MPI_BASE_DIR="${LOCALBASE}" \
+    -D MPI_CXX_COMPILER:FILEPATH="${LOCALBASE}/bin/mpic++"    \
+    -D CMAKE_CXX_COMPILER:FILEPATH="${TRILINOS_PATH}/packages/kokkos/bin/nvcc_wrapper" \
     -D Trilinos_ENABLE_ALL_PACKAGES:BOOL=FALSE \
     -D Trilinos_ENABLE_Stratimikos:BOOL=ON \
     -D Trilinos_ENABLE_Tpetra:BOOL=ON \
@@ -76,26 +79,40 @@ cmake \
     -D Trilinos_ENABLE_ML:BOOL=ON \
     -D Trilinos_ENABLE_Epetra:BOOL=ON \
     -D Trilinos_ENABLE_Xpetra:BOOL=ON \
+    -DTpetra_ENABLE_DEPRECATED_CODE:BOOL=ON \
+    -D Trilinos_ENABLE_OpenMP:BOOL=ON \
+    -D Tpetra_INST_SERIAL:BOOL=ON \
+    -D Tpetra_INST_OPENMP:BOOL=ON \
+    -D Tpetra_INST_INT_INT:BOOL=ON \
+    -DXpetra_ENABLE_DEPRECATED_CODE:BOOL=ON \
     -D Trilinos_ENABLE_ALL_OPTIONAL_PACKAGES:BOOL=ON \
     -D Trilinos_ENABLE_TESTS:BOOL=OFF \
+    -D MueLu_ENABLE_EXAMPLES:BOOL=OFF \
+    -D MueLu_ENABLE_TESTS:BOOL=OFF \
     -D Trilinos_ENABLE_EXAMPLES:BOOL=OFF \
-    -D TPL_ENABLE_MPI:BOOL=ON \
-    -D Trilinos_ENABLE_OpenMP:BOOL=ON \
+    -D Trilinos_ENABLE_COMPLEX:BOOL=OFF \
+    -D CMAKE_CXX_USE_RESPONSE_FILE_FOR_OBJECTS:BOOL=ON \
+    -D Trilinos_ENABLE_CXX11:BOOL=ON \
+    -D Trilinos_CXX11_FLAGS="--expt-extended-lambda -std=c++11" \
+    -D Trilinos_ENABLE_Fortran:BOOL=OFF\
     -D Trilinos_ENABLE_TEUCHOS_TIME_MONITOR:BOOL=ON \
-    -D BLAS_LIBRARY_DIRS:FILEPATH=~/libs/blas/3.6.0-gcc4.8.5 \
-    -D LAPACK_LIBRARY_DIRS:FILEPATH=~/libs/lapack/3.5.0-gcc4.8.5 \
     -D Trilinos_ENABLE_EXPLICIT_INSTANTIATION:BOOL=ON \
     -D BUILD_SHARED_LIBS:BOOL=OFF \
-    -D CMAKE_CXX_FLAGS="-DMPICH_IGNORE_CXX_SEEK -g -lineinfo -Xcudafe \
-        --diag_suppress=conversion_function_not_usable -Xcudafe \
-        --diag_suppress=cc_clobber_ignored -Xcudafe \
-        --diag_suppress=code_is_unreachable" \
-    -D TPL_ENABLE_MPI=ON \
-    -D TPL_ENABLE_CUDA=ON \
-    -D Kokkos_ENABLE_Cuda=ON \
-    -D Kokkos_ENABLE_Cuda_UVM=ON \
+    -D TPL_ENABLE_CUDA:BOOL=ON \
+    -D TPL_ENABLE_CUSPARSE:BOOL=ON \
+    -D TPL_ENABLE_CUSPARSE:BOOL=ON \
+    -D TPL_ENABLE_HWLOC:BOOL=OFF \
+    -D TPL_ENABLE_BLAS:BOOL=ON \
+    -D TPL_ENABLE_LAPACK:BOOL=ON \
+    -D Kokkos_ENABLE_OPENMP:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_UVM:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_LAMBDA:BOOL=ON \
+    -D Kokkos_ARCH_POWER9=ON \
+    -D Kokkos_ARCH_VOLTA70=ON \
     $EXTRA_ARGS \
     ../
+
 
 make -j32
 make install -j32
