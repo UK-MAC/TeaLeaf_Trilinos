@@ -93,7 +93,7 @@ OMP=$(OMP_$(COMPILER))
 
 FLAGS_INTEL     = -O3 -no-prec-div -fpp
 FLAGS_SUN       = -fast -xipo=2 -Xlistv4
-FLAGS_GNU       = -O3 -march=native -funroll-loops
+FLAGS_GNU       = -O3 -g  -funroll-loops
 FLAGS_CRAY      = -em -ra -h acc_model=fast_addr:no_deep_copy:auto_async_all
 FLAGS_PGI       = -fastsse -gopt -Mipa=fast -Mlist
 FLAGS_PATHSCALE = -O3
@@ -101,7 +101,7 @@ FLAGS_XL       = -O5 -qipa=partition=large -g -qfullpath -Q -qsigtrap -qextname=
 FLAGS_          = -O3
 CFLAGS_INTEL     = -O3 -no-prec-div -restrict -fno-alias
 CFLAGS_SUN       = -fast -xipo=2
-CFLAGS_GNU       = -O3 -march=native -funroll-loops
+CFLAGS_GNU       = -O3 -g  -funroll-loops
 CFLAGS_CRAY      = -em -h list=a
 CFLAGS_PGI       = -fastsse -gopt -Mipa=fast -Mlist
 CFLAGS_PATHSCALE = -O3
@@ -142,14 +142,37 @@ REQ_LIB=-lstdc++
 FLAGS=$(FLAGS_$(COMPILER)) $(OMP) $(I3E) $(OPTIONS)
 CFLAGS=$(CFLAGS_$(COMPILER)) $(OMP) $(I3E) $(C_OPTIONS) $(TRILINOS_INCLUDE_DIRS) -c
 
+
+# flags for nvcc
+# # # set NV_ARCH to select the correct one
+NV_ARCH=VOLTA
+CODE_GEN_FERMI=-gencode arch=compute_20,code=sm_21
+CODE_GEN_KEPLER=-gencode arch=compute_35,code=sm_35
+CODE_GEN_KEPLER_CONSUMER=-gencode arch=compute_30,code=sm_30
+CODE_GEN_MAXWELL=-gencode arch=compute_50,code=sm_50
+CODE_GEN_PASCAL=-gencode arch=compute_60,code=sm_60
+CODE_GEN_VOLTA=-gencode arch=compute_70,code=sm_70
+LDLIBS+= -lcudart  -lcusparse -lcurand -lcudadevrt -lm -lstdc++ 
+
 ifdef NO_TRILINOS
 endif
 
 MPI_COMPILER=mpif90
 C_MPI_COMPILER=mpicc
-CXX_MPI_COMPILER=mpicxx
+CXX_MPI_COMPILER=mpic++
 
-tea_leaf: TrilinosStem.o timer_c.o *.f90 Makefile
+NVCC_COMPILER=nvcc
+NV_FLAGS=$(CODE_GEN_$(NV_ARCH)) -expt-extended-lambda -dc -std=c++11 --x cu -Xcompiler "-O2 -g -fopenmp" -I$(CUDA_HOME)/include -I$(TRILINOS_DIR)/include
+NV_FLAGS+=-DNO_ERR_CHK
+libdir.x86_64 = lib64
+libdir.i686   = lib
+libdir.ppc64le=lib64
+MACHINE := $(shell uname -m)
+libdir = $(libdir.$(MACHINE))
+LDFLAGS+=-L$(CUDA_HOME)/$(libdir)
+
+
+tea_leaf: TrilinosStem.o link.o timer_c.o *.f90 Makefile
 	$(MPI_COMPILER) $(FLAGS)	\
 	data.f90			\
 	definitions.f90			\
@@ -186,14 +209,21 @@ tea_leaf: TrilinosStem.o timer_c.o *.f90 Makefile
 	timer_c.o                       \
 	$(REQ_LIB)			\
 	TrilinosStem.o                  \
-	$(TRILINOS_LINK_FLAGS) $(TRILINOS_INCLUDE_DIRS) $(TRILINOS_LIBRARY_DIRS) $(TRILINOS_LIBRARIES)	\
+	link.o					\
+	$(TRILINOS_LINK_FLAGS) $(TRILINOS_INCLUDE_DIRS) $(TRILINOS_LIBRARY_DIRS) $(TRILINOS_LIBRARIES) 	\
+	$(LDFLAGS) $(LDLIBS) \
 	-o tea_leaf; echo $(MESSAGE)
 
 timer_c.o: timer_c.c
 	$(C_MPI_COMPILER) $(CFLAGS) timer_c.c
 
 TrilinosStem.o: TrilinosStem.C TrilinosStem.h
-	$(CXX_MPI_COMPILER) -std=c++11 $(CFLAGS) TrilinosStem.C
+	nvcc -O2  -ccbin=$(CXX_MPI_COMPILER) $(NV_FLAGS)  -c $< -o $@
+
+
+link.o:
+	nvcc -O2 -ccbin=$(CXX_MPI_COMPILER) $(CODE_GEN_$(NV_ARCH)) -dlink -o link.o TrilinosStem.o $(TRILINOS_LIBRARY_DIRS) $(TRILINOS_LIBRARIES) $(LDFLAGS) $(LDLIBS)
+
 
 clean:
 	rm -f *.o *.mod *genmod* *.lst *.cub *.ptx tea_leaf

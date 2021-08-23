@@ -10,8 +10,8 @@
 #include "Tpetra_CrsMatrix.hpp"
 #include "Tpetra_Vector.hpp"
 #include "Tpetra_MultiVector.hpp"
-#include "Tpetra_DefaultPlatform.hpp"
-
+#include "Tpetra_Core.hpp"
+#include "Teuchos_ArrayRCPDecl.hpp"
 #include "Ifpack2_Diagonal.hpp"
 
 // Xpetra
@@ -25,12 +25,11 @@
 class TrilinosStem {
     typedef double Scalar;
     typedef int Ordinal;
-    typedef Tpetra::DefaultPlatform::DefaultPlatformType Platform;
-    typedef Tpetra::DefaultPlatform::DefaultPlatformType::NodeType Node;
+    typedef Tpetra::Map<>::node_type Node;
     //typedef Xpetra::EpetraNode Node;
     //typedef Xpetra::DefaultPlatform::DefaultPlatformType::NodeType Node
-    typedef Tpetra::Map<Ordinal,Ordinal,Node> Map;
-    typedef Xpetra::Map<Ordinal,Ordinal,Node> XMap;
+    typedef Tpetra::Map<Ordinal,Ordinal> Map;
+    typedef Xpetra::Map<Ordinal,Ordinal> XMap;
     typedef Tpetra::CrsMatrix<Scalar,Ordinal,Ordinal,Node> Matrix;
     //typedef Xpetra::Matrix<Scalar,Ordinal,Ordinal,Node> Matrix;
     typedef Tpetra::Vector<Scalar,Ordinal,Ordinal,Node> Vector;
@@ -45,8 +44,7 @@ class TrilinosStem {
                 int localNx, int localNy,
                 int local_xmin, int local_xmax,
                 int local_ymin, int local_ymax,
-		double dx,
-		double dy,
+                double dx, double dy,
                 int tl_max_iters, double tl_eps);
         static void solve(int nx, int ny,
                 int local_xmin, int local_xmax,

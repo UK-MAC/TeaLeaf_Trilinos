@@ -35,6 +35,7 @@
 #include "BelosXpetraAdapter.hpp" // this header defines Belos::XpetraOp()
 #include "BelosMueLuAdapter.hpp"  // this header defines Belos::MueLuOp()
 #include "BelosOperatorT.hpp"
+#include "BelosSolverFactory_Generic.hpp"
 
 // Xpetra
 #include <Xpetra_Matrix.hpp>
@@ -68,8 +69,8 @@ extern "C" {
             int* local_xmax,
             int* local_ymin,
             int* local_ymax,
-	    double* dx,
-	    double* dy,
+            double* dx,
+            double* dy,
             int* tl_max_iters,
             double* tl_eps)
     {
@@ -79,8 +80,8 @@ extern "C" {
                 *local_xmax,
                 *local_ymin,
                 *local_ymax,
-		*dx,
-		*dy,
+                *dx,
+                *dy,
                 *tl_max_iters,
                 *tl_eps);
     }
@@ -137,13 +138,12 @@ void TrilinosStem::initialise(
         int local_xmax,
         int local_ymin,
         int local_ymax,
-	double dx,
-	double dy,
+        double dx,
+        double dy,
         int tl_max_iters,
         double tl_eps)
 {
-    Platform &platform = Tpetra::DefaultPlatform::getDefaultPlatform();
-    Teuchos::RCP<const Teuchos::Comm<int> > comm = platform.getComm();
+    Teuchos::RCP<const Teuchos::Comm<int> > comm = Tpetra::getDefaultComm();
     MyPID = comm->getRank();
 
     if(MyPID == 0)
@@ -156,8 +156,6 @@ void TrilinosStem::initialise(
     int rowSpacing = nx - localNx;
 
     myGlobalIndices_ = new int[numLocalElements_];
-
-    int n = 0;
 
     {
         int index = local_xmin;
@@ -179,13 +177,12 @@ void TrilinosStem::initialise(
         std::cerr << "\t[STEM]: creating map...";
     }
     Teuchos::ArrayView<const Ordinal> localElementList = Teuchos::ArrayView<const Ordinal>(myGlobalIndices_, numLocalElements_);
-    Teuchos::RCP<Node> node = platform.getNode();
-    map = Teuchos::rcp(new Map(numGlobalElements, localElementList, 1, comm, node));
+    Teuchos::RCP<const Map> map = Teuchos::rcp(new const Map(numGlobalElements, localElementList, 1, comm));
 
     //Store co-ordinates of the unknowns so we can use brick agglomeration
     //need to use xmap rather tha map as MueLu needs an Xpetra::MultiVector object
 
-    xmap = Xpetra::MapFactory<Ordinal,Ordinal,Node>::Build(Xpetra::UnderlyingLib::UseTpetra,numGlobalElements, localElementList, 1, comm, node);
+    xmap = Xpetra::MapFactory<Ordinal,Ordinal,Node>::Build(Xpetra::UnderlyingLib::UseTpetra,numGlobalElements, localElementList, 1, comm);
     xcoordinates = Xpetra::MultiVectorFactory<Scalar,Ordinal,Ordinal,Node>::Build(xmap,2);
     Teuchos::ArrayRCP<Teuchos::ArrayRCP<Scalar> > Coord(2);
     Coord[0] = xcoordinates->getDataNonConst(0);
@@ -233,9 +230,9 @@ void TrilinosStem::initialise(
     {
         std::cerr << "\t[STEM]: creating CrsMatrix...";
     }
-    Teuchos::ArrayRCP<const size_t> nnz = Teuchos::ArrayRCP<const size_t>(numNonZero, 0, numLocalElements_, false);
 
-    A = Teuchos::rcp(new Matrix(map, nnz, Tpetra::StaticProfile));
+    Teuchos::ArrayView<const size_t> nnz = Teuchos::ArrayView<const size_t>(numNonZero, numLocalElements_);
+    A = Teuchos::rcp (new Matrix(map, nnz, Tpetra::StaticProfile));
     if(MyPID == 0)
     {
         std::cerr << " DONE." << std::endl;
@@ -288,7 +285,7 @@ void TrilinosStem::solve(
         double* Ky,
         double* u0)
 {
-    Belos::SolverFactory<Scalar, MultiVector, Operator> factory;
+    Belos::GenericSolverFactory<Scalar, MultiVector, Operator> factory;
 
     // Belos+MueLu parameters - retrieve sublists
     Teuchos::ParameterList& iterationParams      = (*solverParams).sublist("Belos Parameters" ,false,"Belos sublist");
@@ -519,4 +516,3 @@ void TrilinosStem::finalise()
     solverParams = Teuchos::null;
     delete myGlobalIndices_;
 }
-
